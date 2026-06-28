@@ -55,6 +55,8 @@ def ask(req: AskRequest):
     decision = route(prompt)
 
     if emb_result["cached"]:
+        saved_kwh = decision.energy.wh_used / 1000
+        saved_co2 = decision.energy.co2_kg
 
         log_routing_event({
             "cached": True,
@@ -64,9 +66,8 @@ def ask(req: AskRequest):
             "input_tokens": decision.signals.token_count,
             "token_budget": decision.token_budget,
             "co2_kg": 0,
-            "co2_saved_kg": decision.energy.co2_kg
+            "co2_saved_kg": saved_co2
         })
-
 
 
         return {
@@ -74,12 +75,11 @@ def ask(req: AskRequest):
             "modelUsed": emb_result["modelUsed"],
             "cached": True,
             "carbon": {
-                "predicted_kwh": 0,
+                "predicted_kwh": saved_kwh,
                 "actual_kwh": 0,
-                "predicted_co2": 0,
+                "predicted_co2": saved_co2,
                 "actual_co2": 0,
-                "saved_kwh": decision.energy.wh_used / 1000,
-                "saved_co2": decision.energy.co2_kg
+
             }
         }
 
