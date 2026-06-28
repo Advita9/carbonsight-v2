@@ -29,17 +29,125 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# class AskRequest(BaseModel):
+#     prompt: str
+#     plan: list | None = None
+
 class AskRequest(BaseModel):
     prompt: str
     plan: list | None = None
+    org_id: str = ""
+    team_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
 
 
 class PromptRequest(BaseModel):
     prompt: str
 
+# @app.post("/ask")
+# def ask(req: AskRequest):
+
+#     prompt = req.prompt
+
+#     if req.plan:
+#         prompt = (
+#             "Follow this execution plan:\n\n"
+#             + "\n".join(req.plan)
+#             + "\n\nUser Request:\n"
+#             + prompt
+#         )
+
+#     emb_result = embedding_agent(prompt)
+
+#     decision = route(prompt)
+
+#     if emb_result["cached"]:
+#         saved_kwh = decision.energy.wh_used / 1000
+#         saved_co2 = decision.energy.co2_kg
+
+#         log_routing_event({
+#             "cached": True,
+#             # new cache tier added 
+#             "tier": "cache",
+#             "complexity": decision.complexity_score,
+#             "input_tokens": decision.signals.token_count,
+#             "token_budget": decision.token_budget,
+#             "co2_kg": 0,
+#             "co2_saved_kg": saved_co2
+#         })
+
+
+#         return {
+#             "response": emb_result["response"],
+#             "modelUsed": emb_result["modelUsed"],
+#             "cached": True,
+#             "carbon": {
+#                 "predicted_kwh": saved_kwh,
+#                 "actual_kwh": 0,
+#                 "predicted_co2": saved_co2,
+#                 "actual_co2": 0,
+
+#             }
+#         }
+
+#     # Route
+#     decision = route(prompt)
+
+
+#     response = generate_response(
+#         tier=decision.model_tier.value,
+#         prompt=prompt,
+#         max_tokens=decision.token_budget
+#     )
+
+#     log_routing_event({
+#         "cached": False,
+#         "tier": decision.model_tier.value,
+#         "complexity": decision.complexity_score,
+#         "input_tokens": decision.signals.token_count,
+#         "token_budget": decision.token_budget,
+#         "co2_kg": decision.energy.co2_kg,
+#         "co2_saved_kg": decision.energy.co2_saved_kg
+#     })
+
+#     save_to_cache(
+#         prompt,
+#         emb_result["embedding"],
+#         response,
+#         decision.model_tier.value
+#     )
+#     # redundant 
+#     # words = len(response.split())
+#     # carbon_estimate = words * 0.00000002
+#     # co2_estimate = carbon_estimate * 0.475
+
+#     return {
+#         "response": response,
+#         "modelUsed": decision.model_tier.value,
+#         "cached": False,
+#         "complexity": decision.complexity_score,
+#         "carbon": {
+#             "predicted_kwh": decision.energy.wh_used / 1000,
+#             "actual_kwh": decision.energy.wh_used / 1000,
+#             "predicted_co2": decision.energy.co2_kg,
+#             "actual_co2": decision.energy.co2_kg
+#         },
+#         "routing": {
+#             "tier": decision.model_tier.value,
+#             "score": decision.complexity_score,
+#             "token_budget": decision.token_budget,
+#             "signals": {
+#                 "tokens": decision.signals.token_count,
+#                 "linguistic": decision.signals.linguistic_score,
+#                 "structure": decision.signals.structure_score,
+#                 "pro_boost": decision.signals.pro_boost
+#             }
+#         }
+#     }
+
 @app.post("/ask")
 def ask(req: AskRequest):
-
     prompt = req.prompt
 
     if req.plan:
@@ -50,42 +158,36 @@ def ask(req: AskRequest):
             + prompt
         )
 
+    # Run both once, upfront
     emb_result = embedding_agent(prompt)
-
     decision = route(prompt)
 
     if emb_result["cached"]:
-        saved_kwh = decision.energy.wh_used / 1000
-        saved_co2 = decision.energy.co2_kg
-
         log_routing_event({
             "cached": True,
-            # new cache tier added 
             "tier": "cache",
             "complexity": decision.complexity_score,
             "input_tokens": decision.signals.token_count,
             "token_budget": decision.token_budget,
-            "co2_kg": 0,
-            "co2_saved_kg": saved_co2
+            "co2_kg": 0.0,
+            "co2_saved_kg": decision.energy.co2_baseline_kg,  # true avoidance
+            "baseline_co2_kg": decision.energy.co2_baseline_kg,
+            "org_id": req.org_id,
+            "team_id": req.team_id,
+            "user_id": req.user_id,
+            "session_id": req.session_id,
         })
-
-
         return {
             "response": emb_result["response"],
             "modelUsed": emb_result["modelUsed"],
             "cached": True,
             "carbon": {
-                "predicted_kwh": saved_kwh,
+                "predicted_kwh": decision.energy.wh_baseline / 1000,
                 "actual_kwh": 0,
-                "predicted_co2": saved_co2,
+                "predicted_co2": decision.energy.co2_baseline_kg,
                 "actual_co2": 0,
-
             }
         }
-
-    # Route
-    decision = route(prompt)
-
 
     response = generate_response(
         tier=decision.model_tier.value,
@@ -100,19 +202,11 @@ def ask(req: AskRequest):
         "input_tokens": decision.signals.token_count,
         "token_budget": decision.token_budget,
         "co2_kg": decision.energy.co2_kg,
-        "co2_saved_kg": decision.energy.co2_saved_kg
+        "co2_saved_kg": decision.energy.co2_saved_kg,
+        "baseline_co2_kg": decision.energy.co2_baseline_kg,
     })
 
-    save_to_cache(
-        prompt,
-        emb_result["embedding"],
-        response,
-        decision.model_tier.value
-    )
-    # redundant 
-    # words = len(response.split())
-    # carbon_estimate = words * 0.00000002
-    # co2_estimate = carbon_estimate * 0.475
+    save_to_cache(prompt, emb_result["embedding"], response, decision.model_tier.value)
 
     return {
         "response": response,
@@ -123,7 +217,7 @@ def ask(req: AskRequest):
             "predicted_kwh": decision.energy.wh_used / 1000,
             "actual_kwh": decision.energy.wh_used / 1000,
             "predicted_co2": decision.energy.co2_kg,
-            "actual_co2": decision.energy.co2_kg
+            "actual_co2": decision.energy.co2_kg,
         },
         "routing": {
             "tier": decision.model_tier.value,
@@ -133,7 +227,7 @@ def ask(req: AskRequest):
                 "tokens": decision.signals.token_count,
                 "linguistic": decision.signals.linguistic_score,
                 "structure": decision.signals.structure_score,
-                "pro_boost": decision.signals.pro_boost
+                "pro_boost": decision.signals.pro_boost,
             }
         }
     }

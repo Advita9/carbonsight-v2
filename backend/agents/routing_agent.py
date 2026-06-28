@@ -136,9 +136,11 @@ class EnergyEstimate:
 
     wh_used: float
     wh_saved: float
+    wh_baseline: float       
 
     co2_kg: float
     co2_saved_kg: float
+    co2_baseline_kg: float 
 
 
 @dataclass
@@ -382,8 +384,10 @@ def estimate_energy(
         output_tokens_estimate=output_tokens_estimate,
         wh_used=wh_used,
         wh_saved=wh_saved,
+        wh_baseline=wh_baseline,              
         co2_kg=co2,
-        co2_saved_kg=co2_saved
+        co2_saved_kg=co2_saved,
+        co2_baseline_kg=wh_baseline * DEFAULT_EMISSION_FACTOR / 1000   
     )
 
 
