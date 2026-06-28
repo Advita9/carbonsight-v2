@@ -50,6 +50,8 @@ def ask(req: AskRequest):
     # Cache hit
     if emb_result["cached"]:
 
+        decision = route(prompt)
+
         return {
             "response": emb_result["response"],
             "modelUsed": emb_result["modelUsed"],
@@ -58,15 +60,18 @@ def ask(req: AskRequest):
                 "predicted_kwh": 0,
                 "actual_kwh": 0,
                 "predicted_co2": 0,
-                "actual_co2": 0
+                "actual_co2": 0,
+                "saved_kwh": decision.energy.wh_used / 1000,
+                "saved_co2": decision.energy.co2_kg
             }
         }
 
     # Route
     decision = route(prompt)
 
+
     response = generate_response(
-        tier=decision.model_tier,
+        tier=decision.model_tier.value,
         prompt=prompt,
         max_tokens=decision.token_budget
     )
@@ -75,24 +80,34 @@ def ask(req: AskRequest):
         prompt,
         emb_result["embedding"],
         response,
-        decision.model_tier
+        decision.model_tier.value
     )
-
-    words = len(response.split())
-
-    carbon_estimate = words * 0.00000002
-    co2_estimate = carbon_estimate * 0.475
+    # redundant 
+    # words = len(response.split())
+    # carbon_estimate = words * 0.00000002
+    # co2_estimate = carbon_estimate * 0.475
 
     return {
         "response": response,
-        "modelUsed": decision.model_tier,
+        "modelUsed": decision.model_tier.value,
         "cached": False,
         "complexity": decision.complexity_score,
         "carbon": {
-            "predicted_kwh": carbon_estimate,
-            "actual_kwh": carbon_estimate,
-            "predicted_co2": co2_estimate,
-            "actual_co2": co2_estimate
+            "predicted_kwh": decision.energy.wh_used / 1000,
+            "actual_kwh": decision.energy.wh_used / 1000,
+            "predicted_co2": decision.energy.co2_kg,
+            "actual_co2": decision.energy.co2_kg
+        },
+        "routing": {
+            "tier": decision.model_tier.value,
+            "score": decision.complexity_score,
+            "token_budget": decision.token_budget,
+            "signals": {
+                "tokens": decision.signals.token_count,
+                "linguistic": decision.signals.linguistic_score,
+                "structure": decision.signals.structure_score,
+                "pro_boost": decision.signals.pro_boost
+            }
         }
     }
 
