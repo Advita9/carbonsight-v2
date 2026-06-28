@@ -1,3 +1,4 @@
+# v2 router for testing: not deterministic (used model inferencing calls)
 # from dataclasses import dataclass
 
 
@@ -69,15 +70,16 @@
 #         score
 #     )
 
+
+# v2 : deterministic routing agent
+
 from __future__ import annotations
 
 import re
 from enum import Enum
 from dataclasses import dataclass
 
-# =====================================================
 # MODEL TIERS
-# =====================================================
 
 class ModelTier(str, Enum):
     MICRO = "micro"
@@ -92,10 +94,9 @@ MODEL_IDS = {
 }
 
 
-# =====================================================
 # ENERGY COEFFICIENTS
 # Relative values only
-# =====================================================
+
 
 ENERGY_COEFFICIENTS = {
     "micro": {
@@ -117,9 +118,7 @@ BASELINE_MODEL = "pro"
 DEFAULT_EMISSION_FACTOR = 0.475
 
 
-# =====================================================
 # DATA MODELS
-# =====================================================
 
 @dataclass
 class ComplexitySignals:
@@ -155,9 +154,7 @@ class RoutingDecision:
     energy: EnergyEstimate
 
 
-# =====================================================
 # COMPLEXITY PATTERNS
-# =====================================================
 
 _HIGH_COMPLEXITY = [
     "analyze",
@@ -203,9 +200,7 @@ _PRO_RE = [
 ]
 
 
-# =====================================================
 # HELPERS
-# =====================================================
 
 def estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
@@ -224,6 +219,8 @@ def estimate_tokens(text: str) -> int:
 #             return 0.55
 
 #     return 0.15
+
+# new version to include reasoning words to trigger lite
 def linguistic_score(text: str):
 
     lower = text.lower().strip()
@@ -280,9 +277,7 @@ def pro_boost(text: str):
     return min(hits * 0.25, 0.50)
 
 
-# =====================================================
 # COMPLEXITY CLASSIFIER
-# =====================================================
 
 def classify_complexity(prompt: str):
 
@@ -323,9 +318,7 @@ def classify_complexity(prompt: str):
     )
 
 
-# =====================================================
 # TIER SELECTION
-# =====================================================
 
 def select_tier(score: float):
 
@@ -347,9 +340,7 @@ def token_budget(tier: ModelTier):
     }[tier]
 
 
-# =====================================================
 # ENERGY ESTIMATION
-# =====================================================
 
 def estimate_energy(
     input_tokens: int,
@@ -396,9 +387,7 @@ def estimate_energy(
     )
 
 
-# =====================================================
 # MAIN ROUTER
-# =====================================================
 
 def route(prompt: str):
 

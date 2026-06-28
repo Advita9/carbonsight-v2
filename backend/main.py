@@ -13,6 +13,11 @@ from agents.routing_agent import route
 
 from cache.vector_cache import save_to_cache
 
+# adding logging to /ask
+from analytics.logger import log_routing_event
+# adding an analyticcs endpoint
+from analytics.metrics import get_summary
+
 
 app = FastAPI()
 
@@ -52,6 +57,14 @@ def ask(req: AskRequest):
 
         decision = route(prompt)
 
+        log_routing_event({
+            "cached": True,
+            "tier": emb_result["modelUsed"],
+            "complexity": 0,
+            "co2_kg": 0,
+            "co2_saved_kg": decision.energy.co2_kg
+        })
+
         return {
             "response": emb_result["response"],
             "modelUsed": emb_result["modelUsed"],
@@ -75,6 +88,16 @@ def ask(req: AskRequest):
         prompt=prompt,
         max_tokens=decision.token_budget
     )
+
+    log_routing_event({
+        "cached": False,
+        "tier": decision.model_tier.value,
+        "complexity": decision.complexity_score,
+        "input_tokens": decision.signals.token_count,
+        "token_budget": decision.token_budget,
+        "co2_kg": decision.energy.co2_kg,
+        "co2_saved_kg": decision.energy.co2_saved_kg
+    })
 
     save_to_cache(
         prompt,
@@ -144,3 +167,8 @@ def optimize(req: PromptRequest):
         "energy_savings_kwh": savings_kwh,
         "co2_savings_kg": savings_co2
     }
+
+@app.get("/analytics")
+def analytics():
+
+    return get_summary()
