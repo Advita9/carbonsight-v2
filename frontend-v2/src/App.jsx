@@ -28,6 +28,8 @@ export default function App() {
   const [visibleSteps, setVisibleSteps] = useState([]);
   const [planLoading, setPlanLoading] = useState(false);
 
+  const [burstAlert, setBurstAlert] = useState(null);
+
 
 
 
@@ -149,6 +151,10 @@ export default function App() {
       );
 
       const parsed = await res.json();
+      if (parsed.burst?.burst && parsed.burst?.swap_suggestion) {
+        setBurstAlert(parsed.burst.swap_suggestion);
+        setTimeout(() => setBurstAlert(null), 8000);  // auto-dismiss after 8s
+      }
 
       const assistantMessage = {
         role: "assistant",
@@ -262,6 +268,21 @@ export default function App() {
               );
             })}
           </div>
+
+          {burstAlert && (
+            <div className="mx-6 mb-2 px-4 py-3 bg-amber-500/10 border border-amber-400/30 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-amber-400 text-lg">⚡</span>
+                <p className="text-sm text-amber-200">{burstAlert}</p>
+              </div>
+              <button
+                onClick={() => setBurstAlert(null)}
+                className="text-white/30 hover:text-white text-xs ml-4"
+              >
+                dismiss
+              </button>
+            </div>
+          )}
 
           {/* INPUT PANEL */}
           <div className="p-6 border-t border-white/10 bg-[#0F1012]">

@@ -19,6 +19,76 @@ from analytics.logger import log_routing_event
 from analytics.metrics import get_summary
 
 
+from collections import deque
+from datetime import datetime, timedelta
+import threading
+
+# In-memory sliding window per user
+# Structure: { user_id: deque([timestamp, ...]) }
+_burst_windows: dict[str, deque] = {}
+_burst_lock = threading.Lock()
+
+BURST_WINDOW_SECONDS = 300        # 5-minute window
+BURST_THRESHOLD_MULTIPLIER = 2.5  # fire if current rate > 2.5× baseline
+BURST_BASELINE_MIN_CALLS = 5      # need at least this many calls to have a baseline
+
+def _check_burst(user_id: str, model_tier: str) -> dict:
+    """
+    Sliding window burst detector.
+    Returns {"burst": bool, "swap_suggestion": str | None, "burst_score": float}
+    """
+    if not user_id:
+        return {"burst": False, "swap_suggestion": None, "burst_score": 0.0}
+
+    now = datetime.utcnow()
+    cutoff = now - timedelta(seconds=BURST_WINDOW_SECONDS)
+
+    with _burst_lock:
+        if user_id not in _burst_windows:
+            _burst_windows[user_id] = deque()
+
+        window = _burst_windows[user_id]
+
+        # Add current timestamp
+        window.append(now)
+
+        # Evict entries older than the window
+        while window and window[0] < cutoff:
+            window.popleft()
+
+        calls_in_window = len(window)
+
+    # Need enough history to establish a baseline
+    if calls_in_window < BURST_BASELINE_MIN_CALLS:
+        return {"burst": False, "swap_suggestion": None, "burst_score": 0.0, "calls_in_window": calls_in_window}
+
+    # Calls per minute in this window
+    current_rate = calls_in_window / (BURST_WINDOW_SECONDS / 60)
+
+    # Baseline = p75 approximation from window history
+    # Simple proxy: first half of window as "normal", second half as "now"
+    half = max(1, calls_in_window // 2)
+    baseline_rate = half / (BURST_WINDOW_SECONDS / 60 / 2)
+
+    burst_score = current_rate / baseline_rate if baseline_rate > 0 else 1.0
+
+    is_burst = burst_score >= BURST_THRESHOLD_MULTIPLIER and model_tier in ("lite", "pro")
+
+    suggestion = None
+    if is_burst:
+        if model_tier == "pro":
+            suggestion = f"High activity detected ({calls_in_window} calls in 5 min). Switch to Lite to save ~75% energy this session and earn swap rewards."
+        elif model_tier == "lite":
+            suggestion = f"High activity detected ({calls_in_window} calls in 5 min). Switch to Micro for simple queries to save ~70% energy and earn swap rewards."
+
+    return {
+        "burst": is_burst,
+        "swap_suggestion": suggestion,
+        "burst_score": round(burst_score, 2),
+        "calls_in_window": calls_in_window,
+    }
+
+
 app = FastAPI()
 
 app.add_middleware(
@@ -161,6 +231,8 @@ def ask(req: AskRequest):
     # Run both once, upfront
     emb_result = embedding_agent(prompt)
     decision = route(prompt)
+    # Burst detection
+    burst_info = _check_burst(req.user_id, decision.model_tier.value)
 
     if emb_result["cached"]:
         log_routing_event({
@@ -186,7 +258,8 @@ def ask(req: AskRequest):
                 "actual_kwh": 0,
                 "predicted_co2": decision.energy.co2_baseline_kg,
                 "actual_co2": 0,
-            }
+            },
+            "burst": burst_info,
         }
 
     response = generate_response(
@@ -204,9 +277,14 @@ def ask(req: AskRequest):
         "co2_kg": decision.energy.co2_kg,
         "co2_saved_kg": decision.energy.co2_saved_kg,
         "baseline_co2_kg": decision.energy.co2_baseline_kg,
+        "org_id": req.org_id,
+        "team_id": req.team_id,
+        "user_id": req.user_id,
+        "session_id": req.session_id,
     })
 
     save_to_cache(prompt, emb_result["embedding"], response, decision.model_tier.value)
+    
 
     return {
         "response": response,
@@ -229,7 +307,8 @@ def ask(req: AskRequest):
                 "structure": decision.signals.structure_score,
                 "pro_boost": decision.signals.pro_boost,
             }
-        }
+        },
+        "burst": burst_info,
     }
 
 
@@ -270,3 +349,5 @@ def optimize(req: PromptRequest):
 def analytics():
 
     return get_summary()
+
+

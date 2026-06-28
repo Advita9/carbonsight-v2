@@ -8,6 +8,8 @@ import App from "./App";
 import UserDashboard from "./dashboards/UserDashboard";
 import TeamDashboard from "./dashboards/TeamDashboard";
 import AdminDashboard from "./dashboards/AdminDashboard";
+import LeaderboardDashboard from "./dashboards/LeaderboardDashboard";
+
 
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
@@ -23,6 +25,7 @@ root.render(
       <Route path="/dashboard" element={<UserDashboard />} />
       <Route path="/team" element={<TeamDashboard />} />
       <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/leaderboard" element={<LeaderboardDashboard />} />
 
       {/* fallback */}
       <Route path="*" element={<div className="p-10 text-white">Page not found</div>} />

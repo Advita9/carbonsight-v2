@@ -31,6 +31,7 @@ import CarbonMeter from "./CarbonMeter";
 const NAV_LINKS = [
   { path: "/dashboard", label: "My Stats" },
   { path: "/team",      label: "Team" },
+  { path: "/leaderboard", label: "Leaderboard" },
   { path: "/admin",     label: "Admin" },
 ];
 
