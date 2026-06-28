@@ -52,18 +52,22 @@ def ask(req: AskRequest):
 
     emb_result = embedding_agent(prompt)
 
-    # Cache hit
-    if emb_result["cached"]:
+    decision = route(prompt)
 
-        decision = route(prompt)
+    if emb_result["cached"]:
 
         log_routing_event({
             "cached": True,
-            "tier": emb_result["modelUsed"],
-            "complexity": 0,
+            # new cache tier added 
+            "tier": "cache",
+            "complexity": decision.complexity_score,
+            "input_tokens": decision.signals.token_count,
+            "token_budget": decision.token_budget,
             "co2_kg": 0,
             "co2_saved_kg": decision.energy.co2_kg
         })
+
+
 
         return {
             "response": emb_result["response"],
