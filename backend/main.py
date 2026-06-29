@@ -29,16 +29,73 @@ _burst_windows: dict[str, deque] = {}
 _burst_lock = threading.Lock()
 
 BURST_WINDOW_SECONDS = 300        # 5-minute window
-BURST_THRESHOLD_MULTIPLIER = 2.5  # fire if current rate > 2.5× baseline
-BURST_BASELINE_MIN_CALLS = 5      # need at least this many calls to have a baseline
+BURST_THRESHOLD_MULTIPLIER = 1.5  # fire if current rate > 2.5× baseline
+BURST_BASELINE_MIN_CALLS = 3      # need at least this many calls to have a baseline
+
+# def _check_burst(user_id: str, model_tier: str) -> dict:
+#     """
+#     Sliding window burst detector.
+#     Returns {"burst": bool, "swap_suggestion": str | None, "burst_score": float}
+#     """
+#     if not user_id:
+#         return {"burst": False, "swap_suggestion": None, "burst_score": 0.0}
+
+#     now = datetime.utcnow()
+#     cutoff = now - timedelta(seconds=BURST_WINDOW_SECONDS)
+
+#     with _burst_lock:
+#         if user_id not in _burst_windows:
+#             _burst_windows[user_id] = deque()
+
+#         window = _burst_windows[user_id]
+
+#         # Add current timestamp
+#         window.append(now)
+
+#         # Evict entries older than the window
+#         while window and window[0] < cutoff:
+#             window.popleft()
+
+#         calls_in_window = len(window)
+
+#     # Need enough history to establish a baseline
+#     if calls_in_window < BURST_BASELINE_MIN_CALLS:
+#         return {"burst": False, "swap_suggestion": None, "burst_score": 0.0, "calls_in_window": calls_in_window}
+
+#     # Calls per minute in this window
+#     current_rate = calls_in_window / (BURST_WINDOW_SECONDS / 60)
+
+#     # Baseline = p75 approximation from window history
+#     # Simple proxy: first half of window as "normal", second half as "now"
+#     half = max(1, calls_in_window // 2)
+#     baseline_rate = half / (BURST_WINDOW_SECONDS / 60 / 2)
+
+#     burst_score = current_rate / baseline_rate if baseline_rate > 0 else 1.0
+
+#     is_burst = burst_score >= BURST_THRESHOLD_MULTIPLIER and model_tier in ("lite", "pro")
+
+#     suggestion = None
+#     if is_burst:
+#         if model_tier == "pro":
+#             suggestion = f"High activity detected ({calls_in_window} calls in 5 min). Switch to Lite to save ~75% energy this session and earn swap rewards."
+#         elif model_tier == "lite":
+#             suggestion = f"High activity detected ({calls_in_window} calls in 5 min). Switch to Micro for simple queries to save ~70% energy and earn swap rewards."
+
+#     return {
+#         "burst": is_burst,
+#         "swap_suggestion": suggestion,
+#         "burst_score": round(burst_score, 2),
+#         "calls_in_window": calls_in_window,
+#     }
+
+# Absolute thresholds — fire if user exceeds these rates within the window
+BURST_CALLS_MICRO = 8    # 8+ calls in 5 min on micro → suggest staying on micro but be aware
+BURST_CALLS_LITE  = 6    # 6+ calls in 5 min on lite  → suggest downgrade to micro
+BURST_CALLS_PRO   = 4    # 4+ calls in 5 min on pro   → suggest downgrade to lite
 
 def _check_burst(user_id: str, model_tier: str) -> dict:
-    """
-    Sliding window burst detector.
-    Returns {"burst": bool, "swap_suggestion": str | None, "burst_score": float}
-    """
     if not user_id:
-        return {"burst": False, "swap_suggestion": None, "burst_score": 0.0}
+        return {"burst": False, "swap_suggestion": None, "burst_score": 0.0, "calls_in_window": 0}
 
     now = datetime.utcnow()
     cutoff = now - timedelta(seconds=BURST_WINDOW_SECONDS)
@@ -48,43 +105,46 @@ def _check_burst(user_id: str, model_tier: str) -> dict:
             _burst_windows[user_id] = deque()
 
         window = _burst_windows[user_id]
-
-        # Add current timestamp
         window.append(now)
 
-        # Evict entries older than the window
         while window and window[0] < cutoff:
             window.popleft()
 
         calls_in_window = len(window)
 
-    # Need enough history to establish a baseline
-    if calls_in_window < BURST_BASELINE_MIN_CALLS:
-        return {"burst": False, "swap_suggestion": None, "burst_score": 0.0, "calls_in_window": calls_in_window}
-
-    # Calls per minute in this window
-    current_rate = calls_in_window / (BURST_WINDOW_SECONDS / 60)
-
-    # Baseline = p75 approximation from window history
-    # Simple proxy: first half of window as "normal", second half as "now"
-    half = max(1, calls_in_window // 2)
-    baseline_rate = half / (BURST_WINDOW_SECONDS / 60 / 2)
-
-    burst_score = current_rate / baseline_rate if baseline_rate > 0 else 1.0
-
-    is_burst = burst_score >= BURST_THRESHOLD_MULTIPLIER and model_tier in ("lite", "pro")
+    # Threshold per tier
+    thresholds = {
+        "micro": BURST_CALLS_MICRO,
+        "lite":  BURST_CALLS_LITE,
+        "pro":   BURST_CALLS_PRO,
+        "cache": BURST_CALLS_MICRO,
+    }
+    threshold = thresholds.get(model_tier, BURST_CALLS_MICRO)
+    burst_score = round(calls_in_window / threshold, 2)
+    is_burst = calls_in_window >= threshold
 
     suggestion = None
     if is_burst:
         if model_tier == "pro":
-            suggestion = f"High activity detected ({calls_in_window} calls in 5 min). Switch to Lite to save ~75% energy this session and earn swap rewards."
+            suggestion = (
+                f"High activity detected ({calls_in_window} Pro calls in 5 min). "
+                f"Switch to Lite to save ~75% energy this session and earn swap rewards."
+            )
         elif model_tier == "lite":
-            suggestion = f"High activity detected ({calls_in_window} calls in 5 min). Switch to Micro for simple queries to save ~70% energy and earn swap rewards."
+            suggestion = (
+                f"High activity detected ({calls_in_window} Lite calls in 5 min). "
+                f"Switch to Micro for simple queries to save ~70% energy and earn swap rewards."
+            )
+        else:
+            suggestion = (
+                f"High activity detected ({calls_in_window} calls in 5 min). "
+                f"Consider batching queries or using the semantic cache to reduce energy usage."
+            )
 
     return {
         "burst": is_burst,
         "swap_suggestion": suggestion,
-        "burst_score": round(burst_score, 2),
+        "burst_score": burst_score,
         "calls_in_window": calls_in_window,
     }
 
