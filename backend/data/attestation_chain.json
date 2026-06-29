@@ -1,0 +1,72 @@
+[
+  {
+    "index": 0,
+    "timestamp": "2026-06-29T12:48:28.057660",
+    "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "org_id": "test-org",
+    "user_id": "test-user",
+    "prompt_hash": "481d04be4cdbb88b",
+    "tier": "micro",
+    "co2_kg": 1e-06,
+    "co2_saved_kg": 5e-06,
+    "baseline_co2_kg": 6e-06,
+    "cached": true,
+    "block_hash": "3e6dfa31528dd2600ee35ef7ee9d4c3abbf1038f9db8b27cab915579eccc6ce6"
+  },
+  {
+    "index": 1,
+    "timestamp": "2026-06-29T12:48:28.057995",
+    "prev_hash": "3e6dfa31528dd2600ee35ef7ee9d4c3abbf1038f9db8b27cab915579eccc6ce6",
+    "org_id": "test-org",
+    "user_id": "test-user",
+    "prompt_hash": "7e5b8ad56422e58b",
+    "tier": "lite",
+    "co2_kg": 2e-06,
+    "co2_saved_kg": 1e-05,
+    "baseline_co2_kg": 1.2e-05,
+    "cached": false,
+    "block_hash": "f4b9719396dcd4f0a5be8ea6ef0e92681d853e7883b14ae125209cbc1b4cff85"
+  },
+  {
+    "index": 2,
+    "timestamp": "2026-06-29T12:48:28.058161",
+    "prev_hash": "f4b9719396dcd4f0a5be8ea6ef0e92681d853e7883b14ae125209cbc1b4cff85",
+    "org_id": "test-org",
+    "user_id": "test-user",
+    "prompt_hash": "259a648c77377794",
+    "tier": "pro",
+    "co2_kg": 3e-06,
+    "co2_saved_kg": 1.5000000000000002e-05,
+    "baseline_co2_kg": 1.8e-05,
+    "cached": true,
+    "block_hash": "b54cd618039790acebfbdb19ba36ee53b8948f3168a22af14952d9e4b22eb2d5"
+  },
+  {
+    "index": 3,
+    "timestamp": "2026-06-29T13:02:36.332182+00:00",
+    "prev_hash": "b54cd618039790acebfbdb19ba36ee53b8948f3168a22af14952d9e4b22eb2d5",
+    "org_id": "",
+    "user_id": "demo-user",
+    "prompt_hash": "",
+    "tier": "micro",
+    "co2_kg": 4.274999999999999e-09,
+    "co2_saved_kg": 7.2675e-08,
+    "baseline_co2_kg": 7.694999999999998e-08,
+    "cached": false,
+    "block_hash": "243ff1d637fff23bebf8b09abd9b93498d99f7d030866a5c7d6ee735668bae7a"
+  },
+  {
+    "index": 4,
+    "timestamp": "2026-06-29T13:02:55.247538+00:00",
+    "prev_hash": "243ff1d637fff23bebf8b09abd9b93498d99f7d030866a5c7d6ee735668bae7a",
+    "org_id": "test-org",
+    "user_id": "test-user",
+    "prompt_hash": "",
+    "tier": "micro",
+    "co2_kg": 1.2824999999999999e-08,
+    "co2_saved_kg": 2.1802499999999994e-07,
+    "baseline_co2_kg": 2.3084999999999998e-07,
+    "cached": false,
+    "block_hash": "67574e67dd9e40ed2bdb78387f2d592f704b8d4d04bab57d00c0927fc5b5302f"
+  }
+]

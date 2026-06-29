@@ -25,6 +25,10 @@ import threading
 
 from fastapi import Query
 
+from attestation.local_chain import attest_routing_event
+from attestation.local_chain import verify_chain, get_chain_summary
+
+
 # In-memory sliding window per user
 # Structure: { user_id: deque([timestamp, ...]) }
 _burst_windows: dict[str, deque] = {}
@@ -311,6 +315,17 @@ def ask(req: AskRequest):
             "user_id": req.user_id,
             "session_id": req.session_id,
         })
+
+        attest_routing_event({
+            "org_id":          req.org_id,
+            "user_id":         req.user_id,
+            "prompt_hash":     decision.prompt_hash if hasattr(decision, "prompt_hash") else "",
+            "tier":            decision.model_tier.value,
+            "co2_kg":          decision.energy.co2_kg,
+            "co2_saved_kg":    decision.energy.co2_saved_kg,
+            "baseline_co2_kg": decision.energy.co2_baseline_kg,
+            "cached":          emb_result["cached"],
+        })
         return {
             "response": emb_result["response"],
             "modelUsed": emb_result["modelUsed"],
@@ -343,6 +358,17 @@ def ask(req: AskRequest):
         "team_id": req.team_id,
         "user_id": req.user_id,
         "session_id": req.session_id,
+    })
+
+    attest_routing_event({
+        "org_id":          req.org_id,
+        "user_id":         req.user_id,
+        "prompt_hash":     decision.prompt_hash if hasattr(decision, "prompt_hash") else "",
+        "tier":            decision.model_tier.value,
+        "co2_kg":          decision.energy.co2_kg,
+        "co2_saved_kg":    decision.energy.co2_saved_kg,
+        "baseline_co2_kg": decision.energy.co2_baseline_kg,
+        "cached":          emb_result["cached"],
     })
 
     save_to_cache(prompt, emb_result["embedding"], response, decision.model_tier.value)
@@ -418,3 +444,10 @@ def analytics():
     return get_summary()
 
 
+@app.get("/attestation/verify")
+def attestation_verify():
+    return verify_chain()
+
+@app.get("/attestation/summary")
+def attestation_summary():
+    return get_chain_summary()
