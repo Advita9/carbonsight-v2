@@ -31,6 +31,7 @@ export default function App() {
   const [burstAlert, setBurstAlert] = useState(null);
 
 
+  const DEMO_USER_ID = "demo-user";
 
 
 
@@ -46,7 +47,7 @@ export default function App() {
   let workingPrompt = input;
   let plan = null;
 
-  /* 0️⃣ Clear suggest mode if active */
+  /* Clear suggest mode if active */
   if (suggestMode) {
     setCoachData(null);
     setSuggestMode(false);
@@ -54,9 +55,7 @@ export default function App() {
 
  
 
-    /* ======================================
-          2️⃣ OPTIMIZE MODE — call /optimize
-      ====================================== */
+    // OPTIMIZE MODE — call /optimize
     if (optimizePrompt) {
       try {
         const optRes = await fetch(
@@ -88,7 +87,7 @@ export default function App() {
     }
 
 
-  /* 1️⃣ ECO PLAN MODE */
+  /* ECO PLAN MODE */
   if (ecoPlanMode) {
     try {
       setPlanLoading(true);
@@ -109,7 +108,7 @@ export default function App() {
 
       setPlanSteps(steps);
 
-      // ⏳ fake "thinking" delay
+      // fake "thinking" delay
       setTimeout(() => {
         setPlanLoading(false);
 
@@ -130,12 +129,12 @@ export default function App() {
 
 
     /* ======================================
-          3️⃣ Add USER message
+          Add USER message
       ====================================== */
     setMessages(prev => [...prev, { role: "user", text: input }]);
 
     /* ======================================
-          4️⃣ Call /ask with plan (optional)
+          Call /ask with plan (optional)
       ====================================== */
     try {
       const res = await fetch(
@@ -145,15 +144,20 @@ export default function App() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: workingPrompt,
-            plan: ecoPlanMode ? plan : null   // only include plan when enabled
+            plan: ecoPlanMode ? plan : null,   // only include plan when enabled
+            user_id: DEMO_USER_ID,
           }),
         }
       );
 
       const parsed = await res.json();
       if (parsed.burst?.burst && parsed.burst?.swap_suggestion) {
-        setBurstAlert(parsed.burst.swap_suggestion);
-        setTimeout(() => setBurstAlert(null), 8000);  // auto-dismiss after 8s
+        setBurstAlert({
+          message: parsed.burst.swap_suggestion,
+          calls: parsed.burst.calls_in_window,
+          score: parsed.burst.burst_score,
+        });
+        setTimeout(() => setBurstAlert(null), 12000);
       }
 
       const assistantMessage = {
@@ -232,7 +236,7 @@ export default function App() {
                 );
               }
 
-              // 2️⃣ Normal messages
+              //  Normal messages
               return (
                 <div key={idx} className="relative group flex flex-col max-w-3xl">
                   <div
@@ -270,19 +274,66 @@ export default function App() {
           </div>
 
           {burstAlert && (
-            <div className="mx-6 mb-2 px-4 py-3 bg-amber-500/10 border border-amber-400/30 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-amber-400 text-lg">⚡</span>
-                <p className="text-sm text-amber-200">{burstAlert}</p>
+          <div className="mx-6 mb-2 px-5 py-4 bg-amber-500/10 border border-amber-400/30 rounded-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span className="text-amber-400 text-xl mt-0.5"></span>
+                <div>
+                  <p className="text-sm font-semibold text-amber-300 mb-1">
+                   High compute interval detected
+                  </p>
+                  <p className="text-sm text-amber-200/80">
+                    {burstAlert.calls} AI requests sent in the last 5 minutes —
+                    {" "}above your normal usage pattern.
+                    Switching to a lighter model now would reduce energy use by up to 75%
+                    and qualify you for green swap rewards.
+                  </p>
+                  <div className="flex items-center gap-4 mt-3">
+                    <div className="text-xs text-white/40">
+                      Burst score: <span className="text-amber-400 font-mono">{burstAlert.score}×</span>
+                      <span className="ml-1 text-white/25">threshold</span>
+                    </div>
+                    <div className="text-xs text-white/40">
+                      Detected by: <span className="text-white/60">sliding window monitor</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="h-1.5 w-32 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(burstAlert.score * 50, 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-white/30">
+                      {burstAlert.score}× above threshold
+                    </span>
+                  </div>
+                </div>
               </div>
               <button
                 onClick={() => setBurstAlert(null)}
-                className="text-white/30 hover:text-white text-xs ml-4"
+                className="text-white/20 hover:text-white/60 text-lg leading-none mt-0.5"
               >
-                dismiss
+                ×
               </button>
             </div>
-          )}
+
+            {/* What this means for ESG */}
+            <div className="mt-4 pt-3 border-t border-amber-400/10 flex items-center gap-2">
+              <span className="text-xs text-white/30">
+                🌿 This session's burst would have cost{" "}
+                <span className="text-white/50">
+                  ~{(burstAlert.calls * 0.000018 * 1e6).toFixed(1)} µg CO₂
+                </span>{" "}
+                at Pro tier vs{" "}
+                <span className="text-green-400">
+                  ~{(burstAlert.calls * 0.000001 * 1e6).toFixed(1)} µg CO₂
+                </span>{" "}
+                at Micro — carbon ledger is tracking this.
+              </span>
+            </div>
+          </div>
+        )}
 
           {/* INPUT PANEL */}
           <div className="p-6 border-t border-white/10 bg-[#0F1012]">
@@ -367,6 +418,77 @@ export default function App() {
               </button>
             </div>
           </div>
+
+              {/* Burst Demo Button */}
+              <button
+                onClick={async () => {
+                  // Reset burst window so demo always starts clean
+                  await fetch("http://127.0.0.1:8000/burst/reset?user_id=demo-user", {
+                    method: "POST"
+                  });
+                  const demoPrompts = [
+                    "What is machine learning?",
+                    "How does gradient descent work?",
+                    "Explain neural network layers",
+                    "What is backpropagation?",
+                    "Compare supervised vs unsupervised learning",
+                    "What is overfitting in ML models?",
+                  ];
+
+                  for (let i = 0; i < demoPrompts.length; i++) {
+                    const prompt = demoPrompts[i];
+
+                    // Show user message in chat immediately
+                    setMessages(prev => [...prev, { role: "user", text: prompt }]);
+
+                    // Realistic typing delay between sends (1.2s – 2.5s)
+                    await new Promise(r => setTimeout(r, 1200 + Math.random() * 1300));
+
+
+                    try {
+                      const res = await fetch("http://127.0.0.1:8000/ask", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ prompt, user_id: "demo-user" })
+                      });
+                      const parsed = await res.json();
+
+                      // Add assistant response to chat
+                      setMessages(prev => [...prev, {
+                        role: "assistant",
+                        text: parsed.response,
+                        model: parsed.modelUsed,
+                        cached: parsed.cached || false,
+                        carbon: parsed.carbon || null,
+                      }]);
+
+                      setModelUsed(parsed.modelUsed);
+                      setCarbonData(parsed.carbon || null);
+
+                      // Check for burst
+                      if (parsed.burst?.burst && parsed.burst?.swap_suggestion) {
+                        setBurstAlert({
+                          message: parsed.burst.swap_suggestion,
+                          calls: parsed.burst.calls_in_window,
+                          score: parsed.burst.burst_score,
+                        });
+                        setTimeout(() => setBurstAlert(null), 12000);
+                        break;
+                      }
+
+                    } catch (err) {
+                      console.error("Demo query failed:", err);
+                    }
+                    // Small gap between sends — just enough to feel human, 
+                    // API response time (3-4s) provides the main pacing
+                    await new Promise(r => setTimeout(r, 300));
+                  }
+                }}
+                className="px-3 py-2 bg-purple-500/20 text-purple-400 text-xs rounded-lg hover:bg-purple-500/30 transition"
+                title="Demo: simulates a burst of AI queries at realistic speed"
+              >
+                Burst Test Demo
+              </button>
 
           <PromptSuggestor
             coach={coachData}

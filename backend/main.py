@@ -23,6 +23,8 @@ from collections import deque
 from datetime import datetime, timedelta
 import threading
 
+from fastapi import Query
+
 # In-memory sliding window per user
 # Structure: { user_id: deque([timestamp, ...]) }
 _burst_windows: dict[str, deque] = {}
@@ -89,9 +91,9 @@ BURST_BASELINE_MIN_CALLS = 3      # need at least this many calls to have a base
 #     }
 
 # Absolute thresholds — fire if user exceeds these rates within the window
-BURST_CALLS_MICRO = 8    # 8+ calls in 5 min on micro → suggest staying on micro but be aware
-BURST_CALLS_LITE  = 6    # 6+ calls in 5 min on lite  → suggest downgrade to micro
-BURST_CALLS_PRO   = 4    # 4+ calls in 5 min on pro   → suggest downgrade to lite
+BURST_CALLS_MICRO = 4    # 8+ calls in 5 min on micro → suggest staying on micro but be aware
+BURST_CALLS_LITE  = 3   # 6+ calls in 5 min on lite  → suggest downgrade to micro
+BURST_CALLS_PRO   = 2    # 4+ calls in 5 min on pro   → suggest downgrade to lite
 
 def _check_burst(user_id: str, model_tier: str) -> dict:
     if not user_id:
@@ -370,7 +372,12 @@ def ask(req: AskRequest):
         },
         "burst": burst_info,
     }
-
+@app.post("/burst/reset")
+def burst_reset(user_id: str = Query(default="demo-user")):
+    with _burst_lock:
+        if user_id in _burst_windows:
+            del _burst_windows[user_id]
+    return {"reset": True, "user_id": user_id}
 
 @app.get("/health")
 def health():
